@@ -215,11 +215,13 @@ class NetCDFStorage(object):
         nc_path = "/{envname}/{modname}/{varname}".format(envname=envname, modname=modname, varname=varname)
 
         if iteration is not None:
-            pickled = self._ncfile[nc_path][iteration]
+            variable = self._ncfile[nc_path][iteration]
         else:
-            pickled = self._ncfile[nc_path][0]
-
-        obj = pickle.loads(codecs.decode(pickled.encode(), "base64"))
+            variable = self._ncfile[nc_path][0]
+        if isinstance(variable, str):
+            obj = pickle.loads(codecs.decode(variable.encode(), "base64"))
+        else:
+            obj = variable
         return obj
 
     def write_quantity(self, varname, value, iteration=None):
