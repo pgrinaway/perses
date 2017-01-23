@@ -83,6 +83,41 @@ def test_testsystems_travis():
 
     run_samplers(testsystem_names)
 
+def test_tractable_system():
+    """
+    Test that the tractable testsystem samples molecules with the correct probabilities.
+    """
+    from perses.tests.testsystems import TractableValenceSmallMoleculeTestSystem
+    import itertools
+    from perses import storage
+
+    OUTFILE_NAME = "tractable_test.nc"
+    #initialize the system with no NCMC, 5 MCMC steps/iterations, and run 10000 iterations of the ExpandedEnsembleSampler
+    tractable_test_system = TractableValenceSmallMoleculeTestSystem(storage_filename=OUTFILE_NAME)
+    environment = 'vacuum'
+    tractable_test_system.exen_samplers[environment].ncmc_engine.nsteps = 0
+    tractable_test_system.mcmc_samplers[environment].nsteps = 5
+    tractable_test_system.exen_samplers[environment].run(niterations=100)
+
+    #read in the storage file
+    storage = storage.NetCDFStorage(OUTFILE_NAME, mode='r')
+
+    chemical_states = tractable_test_system.proposal_engines['vacuum'].chemical_state_list
+
+    #Create structure for storing logP_accepts
+    logPs = {chemical_state : [] for chemical_state in chemical_states}
+    logP_dict = {chemical_state : logPs for chemical_state in chemical_states}
+
+
+
+
+
+
+
+
+
+
+
 @attr('advanced')
 def test_testsystems_advanced():
     """
@@ -161,8 +196,7 @@ def test_hybrid_scheme():
 
 
 if __name__=="__main__":
-    for t in test_hybrid_scheme():
-        t()
+    test_tractable_system()
 #    for t in test_samplers():
 #        print(t.description)
 #        t()
