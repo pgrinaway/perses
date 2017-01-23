@@ -88,11 +88,12 @@ def test_tractable_system():
     Test that the tractable testsystem samples molecules with the correct probabilities.
     """
     from perses.tests.testsystems import TractableValenceSmallMoleculeTestSystem
-    import itertools
+    import pymbar
     from perses import storage
+    import itertools
 
     outfile_name = "tractable_test.nc"
-    n_iterations = 10
+    n_iterations = 100
     environment = 'vacuum'
     modname = 'ExpandedEnsembleSampler'
 
@@ -117,7 +118,20 @@ def test_tractable_system():
         proposed_state_key = storage.get_object(environment, modname, 'proposed_state_key', i)
         logP_accept = storage.get_object(environment, modname, 'logP_accept', i)
         logP_dict[state_key][proposed_state_key].append(logP_accept)
-    
+
+    #estimate the free energies using BAR:
+    for pair in itertools.combinations(chemical_states,2):
+        w_f = np.array(logP_dict[pair[0]][pair[1]])
+        w_r = np.array(logP_dict[pair[1]][pair[0]])
+        deltaF, dDeltaF = pymbar.BAR(w_f, w_r)
+        analytical_difference = tractable_test_system._log_normalizing_constants[pair[0]] \
+                                - tractable_test_system._log_normalizing_constants[pair[1]]
+        if np.abs(deltaF - analytical_difference) > 6*dDeltaF:
+            msg = "The computed free energy did not match the analytical difference\n"
+            msg += "Analytical difference: {analytical} \n".format(analytical=analytical_difference)
+            msg += "Computed difference: {deltaF} +/- {dDeltaF}".format(deltaF=deltaF, dDeltaF=dDeltaF)
+            raise Exception(msg)
+
 
 
 
