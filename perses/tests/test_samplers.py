@@ -91,16 +91,20 @@ def test_tractable_system():
     import itertools
     from perses import storage
 
-    OUTFILE_NAME = "tractable_test.nc"
-    #initialize the system with no NCMC, 5 MCMC steps/iterations, and run 10000 iterations of the ExpandedEnsembleSampler
-    tractable_test_system = TractableValenceSmallMoleculeTestSystem(storage_filename=OUTFILE_NAME)
+    outfile_name = "tractable_test.nc"
+    n_iterations = 100
     environment = 'vacuum'
+    modname = 'ExpandedEnsembleSampler'
+
+
+    #initialize the system with no NCMC, 5 MCMC steps/iterations, and run 10000 iterations of the ExpandedEnsembleSampler
+    tractable_test_system = TractableValenceSmallMoleculeTestSystem(storage_filename=outfile_name)
     tractable_test_system.exen_samplers[environment].ncmc_engine.nsteps = 0
     tractable_test_system.mcmc_samplers[environment].nsteps = 5
-    tractable_test_system.exen_samplers[environment].run(niterations=100)
+    tractable_test_system.exen_samplers[environment].run(niterations=n_iterations)
 
     #read in the storage file
-    storage = storage.NetCDFStorage(OUTFILE_NAME, mode='r')
+    storage = storage.NetCDFStorage(outfile_name, mode='r')
 
     chemical_states = tractable_test_system.proposal_engines['vacuum'].chemical_state_list
 
@@ -108,6 +112,10 @@ def test_tractable_system():
     logPs = {chemical_state : [] for chemical_state in chemical_states}
     logP_dict = {chemical_state : logPs for chemical_state in chemical_states}
 
+    for i in range(n_iterations):
+        state_key = storage.get_object(environment, modname, 'state_key', i)
+        proposed_state_key = storage.get_object(environment, modname, 'proposed_state_key', i)
+        logP_accept = storage.get_object(environment, modname, 'logP_accept', i)
 
 
 
