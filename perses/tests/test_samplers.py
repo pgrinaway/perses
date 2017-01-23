@@ -116,6 +116,8 @@ def test_tractable_system():
         state_key = storage.get_object(environment, modname, 'state_key', i)
         proposed_state_key = storage.get_object(environment, modname, 'proposed_state_key', i)
         logP_accept = storage.get_object(environment, modname, 'logP_accept', i)
+        logP_dict[state_key][proposed_state_key] = logP_accept
+    print(logP_dict)
 
 
 
