@@ -2602,11 +2602,17 @@ def run_valence_system():
     testsystem.mcmc_samplers[environment].nsteps = 1
     testsystem.sams_samplers[environment].run(niterations=50)
 
-def run_tractable_system():
+def run_tractable_system(output_filename):
     """
-    Run the tractable test system with only vacuum and the exen sampler
+    Run the tractable test system with only vacuum and the exen sampler, writing the output to a file with the appropriate
+    name.
+
+    Arguments
+    ---------
+    output_filename : str
+        the name of the output file
     """
-    testsystem = TractableValenceSmallMoleculeTestSystem(storage_filename='tractable_output_10k_fixedsamsmaybe.nc')
+    testsystem = TractableValenceSmallMoleculeTestSystem(storage_filename=output_filename)
     environment = 'vacuum'
     testsystem.exen_samplers[environment].pdbfile = open('tractable.pdb','w')
     testsystem.exen_samplers[environment].ncmc_engine.nsteps = 0
