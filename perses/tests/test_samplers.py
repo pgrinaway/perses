@@ -92,6 +92,8 @@ def test_tractable_system():
     from perses import storage
     import itertools
 
+    kB = unit.BOLTZMANN_CONSTANT_kB * unit.AVOGADRO_CONSTANT_NA
+    temperature = 300.0*unit.kelvin
     outfile_name = "tractable_test.nc"
     n_iterations = 100
     environment = 'vacuum'
@@ -124,13 +126,14 @@ def test_tractable_system():
         w_f = -np.array(logP_dict[pair[0]][pair[1]])
         w_r = -np.array(logP_dict[pair[1]][pair[0]])
         deltaF, dDeltaF = pymbar.BAR(w_f, w_r)
-        analytical_difference = tractable_test_system._log_normalizing_constants[pair[0]] \
-                                - tractable_test_system._log_normalizing_constants[pair[1]]
+        analytical_difference = -1.0 * (tractable_test_system._log_normalizing_constants[pair[0]] - tractable_test_system._log_normalizing_constants[pair[1]])
         if np.abs(deltaF - analytical_difference) > 6*dDeltaF:
             msg = "The computed free energy did not match the analytical difference\n"
             msg += "Analytical difference: {analytical} \n".format(analytical=analytical_difference)
             msg += "Computed difference: {deltaF} +/- {dDeltaF}".format(deltaF=deltaF, dDeltaF=dDeltaF)
-            #raise Exception(msg)
+            print(pair)
+            print(msg)
+            raise Exception(msg)
 
 
 
