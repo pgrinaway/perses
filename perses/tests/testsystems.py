@@ -2048,7 +2048,7 @@ class TractableValenceSmallMoleculeTestSystem(ValenceSmallMoleculeLibraryTestSys
             bond_with_units = self._geometry_engine._add_bond_units(bond)
             r_0 = bond_with_units.type.req.value_in_unit(unit.nanometers)
             r_k = bond_with_units.type.k.value_in_unit(unit.kilojoule/(unit.nanometer**2*unit.mole))
-            bond_q = lambda r: np.exp(-beta*(r_k/2)*(r-r_0)**2)
+            bond_q = lambda r: np.exp(-beta*(r_k/2)*(r-r_0)**2)*r**2
             bond_integral, err = integrate.quad(bond_q, 0, np.inf, epsabs=1e-17)
             logZ += np.log(bond_integral)
 
@@ -2057,7 +2057,7 @@ class TractableValenceSmallMoleculeTestSystem(ValenceSmallMoleculeLibraryTestSys
             angle_with_units = self._geometry_engine._add_angle_units(angle)
             theta_0 = angle_with_units.type.theteq.value_in_unit(unit.radians)
             theta_k = angle_with_units.type.k.value_in_unit(unit.kilojoule/(unit.radian**2*unit.mole))
-            angle_q = lambda theta: np.exp(-beta*(theta_k/2)*(theta-theta_0)**2)
+            angle_q = lambda theta: np.exp(-beta*(theta_k/2)*(theta-theta_0)**2)*np.sin(theta)
             angle_integral, err = integrate.quad(angle_q, 0, np.pi, epsabs=1e-17)
             logZ += np.log(angle_integral)
 
