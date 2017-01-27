@@ -2018,12 +2018,6 @@ class TractableValenceSmallMoleculeTestSystem(ValenceSmallMoleculeLibraryTestSys
             _, structure = self._get_context_and_structure(molecule)
             self._log_normalizing_constants[molecule] = self._get_log_normalizing_constant(structure)
 
-        #self.exen_samplers['vacuum'].log_weights['SS'] = 0.0
-
-        #for state_key, log_weight in self._log_normalizing_constants.items():
-        #    if state_key != 'SS':
-        #        self.exen_samplers['vacuum'].log_weights[state_key] = -(log_weight - self._log_normalizing_constants['SS'])
-
     def _get_log_normalizing_constant(self, structure):
         """
         Get the log normalizing constant of this tractable system using numerical quadrature
@@ -2067,7 +2061,7 @@ class TractableValenceSmallMoleculeTestSystem(ValenceSmallMoleculeLibraryTestSys
             torsion_k = torsion_with_units.type.phi_k.value_in_unit(unit.kilojoule_per_mole)
             gamma = torsion_with_units.type.phase.value_in_unit(unit.radian)
             torsion_q = lambda phi: np.exp(-beta*(torsion_k/2.0)*(1+np.cos(n*phi-gamma)))
-            torsion_integral, err = integrate.quad(torsion_q, 0, 2.0, epsabs=1e-17)
+            torsion_integral, err = integrate.quad(torsion_q, 0, 2.0*np.pi, epsabs=1e-17)
             logZ += np.log(torsion_integral)
 
         return logZ
