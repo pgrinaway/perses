@@ -2351,6 +2351,7 @@ class PropaneTestSystem(NullTestSystem):
         super(PropaneTestSystem, self).__init__(storage_filename=storage_filename, exen_pdb_filename=exen_pdb_filename, scheme=scheme, options=options)
 
 from perses.tests import utils
+import sams
 
 class VacuumAbsoluteFreeEnergySystem(object):
     """
@@ -2369,7 +2370,7 @@ class VacuumAbsoluteFreeEnergySystem(object):
     """
     _harmonic_well_potential = "(1-lambda_harmonic)*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)"
 
-    def __init__(self, smiles, valence_only=True):
+    def __init__(self, smiles, valence_only=True, n_states=128):
         self._smiles = smiles
         self._valence_only = valence_only
         self._oemol = utils.createOEMolFromSMILES(self._smiles)
@@ -2378,6 +2379,31 @@ class VacuumAbsoluteFreeEnergySystem(object):
         self._positions = positions.value_in_unit(unit.nanometers)
         self._topology = topology
         self._modified_system = self._generate_modified_system(self._system, self._positions)
+        self._temperature = 300.0*unit.kelvin
+
+        #set up the sampler stack to perform the calculation:
+        sampler_state = sams.SamplerState(positions=self._positions)
+        parameters_reference = {'lambda_bonds' : 1.0, 'lambda_angles' : 1.0, 'lambda_torsions' : 1.0, 'lambda_harmonic' :1.0}
+
+        list_of_states = []
+
+        for state_idx in range(n_states):
+            parameters = {}
+            for parameter, default_value in parameters_reference.items():
+                if parameter=="lambda_harmonic":
+                    parameters[parameter] = default_value * state_idx / n_states
+                else:
+                    parameters[parameter] = default_value * (n_states - state_idx) / n_states
+            thermodynamic_state = sams.ThermodynamicState(self._modified_system, self._temperature, parameters=parameters)
+            list_of_states.append(thermodynamic_state)
+
+        self._mcmc_sampler = sams.MCMCSampler(thermodynamic_state=list_of_states[0], sampler_state=sampler_state)
+        self._exen_sampler = sams.ExpandedEnsembleSampler(self._mcmc_sampler, list_of_states)
+        self._sams_sampler = sams.SAMSSampler(self._exen_sampler)
+
+    def run_sams(self, niterations=5):
+        self._sams_sampler.run(niterations=niterations)
+        print(self._sams_sampler.logZ)
 
     def _oemol_to_openmm_system(self, oemol, molecule_name=None, forcefield=['data/gaff.xml']):
         from perses.rjmc import topology_proposal
@@ -2427,7 +2453,7 @@ class VacuumAbsoluteFreeEnergySystem(object):
         modified_system.addForce(external_harmonic_force)
         for particle_idx in range(modified_system.getNumParticles()):
             particle_position = positions[particle_idx, :]
-            external_harmonic_force.addParticle(particle_position[0], particle_position[1], particle_position[2])
+            external_harmonic_force.addParticle(particle_idx, [particle_position[0], particle_position[1], particle_position[2]])
 
         return modified_system
 
@@ -2871,7 +2897,7 @@ if __name__ == '__main__':
     #run_alanine_system(sterics=False)
     #run_fused_rings()
     #run_valence_system()
-    run_tractable_system("output.nc")
+    #run_tractable_system("output.nc")
     #run_t4_inhibitors()
     #run_imidazole()
     #run_constph_abl()
@@ -2879,3 +2905,5 @@ if __name__ == '__main__':
     #run_kinase_inhibitors()
     #run_abl_imatinib()
     #run_myb()
+    s = VacuumAbsoluteFreeEnergySystem("SS")
+    s.run_sams(niterations=100)
