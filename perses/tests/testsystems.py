@@ -2350,6 +2350,90 @@ class PropaneTestSystem(NullTestSystem):
         self.mol_name = 'propane'
         super(PropaneTestSystem, self).__init__(storage_filename=storage_filename, exen_pdb_filename=exen_pdb_filename, scheme=scheme, options=options)
 
+from perses.tests import utils
+
+class VacuumAbsoluteFreeEnergySystem(object):
+    """
+    This class is designed to accept a smiles string representing a small molecule and set up a calculation to calculate
+    that small molecule's absolute free energy in vacuum. This happens in two stages: first, the ratio of the partition
+    function of the molecule with all forces on to that of the atoms in harmonic wells is estimated. Then, the absolute
+    partition function (which is analytic) of the harmonic wells is used to compute the estimated partition function of
+    the molecule.
+
+    Arguments
+    ---------
+    smiles : str
+        The SMILES string representing the molecule of interest
+    valence_only : bool
+        Whether to start with a valence-only system. Useful for certain tests.
+    """
+    _harmonic_well_potential = "(1-lambda_harmonic)*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)"
+
+    def __init__(self, smiles, valence_only=True):
+        self._smiles = smiles
+        self._valence_only = valence_only
+        self._oemol = utils.createOEMolFromSMILES(self._smiles)
+        system, positions, topology = self._oemol_to_openmm_system(self._oemol, forcefield=['data/gaff-valence-only.xml'])
+        self._system = system
+        self._positions = positions.value_in_unit(unit.nanometers)
+        self._topology = topology
+        self._modified_system = self._generate_modified_system(self._system, self._positions)
+
+    def _oemol_to_openmm_system(self, oemol, molecule_name=None, forcefield=['data/gaff.xml']):
+        from perses.rjmc import topology_proposal
+        from openmoltools import forcefield_generators
+        xml_filenames = [utils.get_data_filename(fname) for fname in forcefield]
+        system_generator = topology_proposal.SystemGenerator(xml_filenames, forcefield_kwargs={'constraints' : None})
+        topology = forcefield_generators.generateTopologyFromOEMol(oemol)
+        system = system_generator.build_system(topology)
+        positions = utils.extractPositionsFromOEMOL(oemol)
+        return system, positions, topology
+
+    def _generate_modified_system(self, system, positions):
+        """
+        Generate an alchemically-modified system that also has a CustomExternalForce on each
+        atom.
+
+        Arguments
+        ---------
+        system : openmm.System
+            The small-molecule containing openmm system
+        positions : [n, 3] np.ndarray
+            The positions of the atoms in the system, in nanometers
+
+        Returns
+        -------
+        modified_system : openmm.System
+            Alchemically-modified system with harmonic restraining wells on each atom.
+
+        """
+        from alchemy import AbsoluteAlchemicalFactory
+        n_atoms = system.getNumParticles()
+        factory = AbsoluteAlchemicalFactory(system, ligand_atoms=range(n_atoms), alchemical_torsions=True, alchemical_bonds=True, alchemical_angles=True)
+        modified_system = factory.alchemically_modified_system
+
+        #create the external harmonic force
+        external_harmonic_force = openmm.CustomExternalForce(self._harmonic_well_potential)
+
+        #K is the force constant, x0,y0,z0 are the equilibrium coordinates
+        external_harmonic_force.addGlobalParameter("k", 10.0)
+        external_harmonic_force.addGlobalParameter("lambda_harmonic", 1)
+        external_harmonic_force.addPerParticleParameter("x0")
+        external_harmonic_force.addPerParticleParameter("y0")
+        external_harmonic_force.addPerParticleParameter("z0")
+
+        #add the external force to the system
+        #we use the original positions of the atoms as equilibrium positions for the wells.
+        modified_system.addForce(external_harmonic_force)
+        for particle_idx in range(modified_system.getNumParticles()):
+            particle_position = positions[particle_idx, :]
+            external_harmonic_force.addParticle(particle_position[0], particle_position[1], particle_position[2])
+
+        return modified_system
+
+
+
+
 
 def run_null_system(testsystem):
     """
@@ -2612,7 +2696,7 @@ def run_tractable_system(output_filename):
     testsystem.exen_samplers[environment].pdbfile = open('tractable.pdb','w')
     testsystem.exen_samplers[environment].ncmc_engine.nsteps = 0
     testsystem.mcmc_samplers[environment].nsteps = 5
-    #testsystem.sams_samplers[environment].run(niterations=10)
+    testsystem.sams_samplers[environment].run(niterations=100)
     print(testsystem._log_normalizing_constants)
 
 
