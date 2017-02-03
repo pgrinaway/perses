@@ -1212,8 +1212,6 @@ class BootstrapParticleFilter(object):
         angle_k = angle.type.k
         sigma_theta = units.sqrt(1/(self._beta*angle_k))
         logZ_theta = np.log((np.sqrt(2*np.pi)*(sigma_theta/units.radians))) # CHECK DOMAIN AND UNITS
-        logp_theta = self._angle_logq(theta, angle) - logZ_theta
-
         #propose a torsion angle uniformly (this can be dramatically improved)
         phi = np.random.uniform(-np.pi, np.pi)
         logp_phi = -np.log(2*np.pi)
@@ -1221,7 +1219,7 @@ class BootstrapParticleFilter(object):
         #get the new cartesian coordinates and detJ:
         new_xyz, detJ = self._internal_to_cartesian(positions[bond_atom.idx], positions[angle_atom.idx], positions[torsion_atom.idx], r, theta, phi)
         #accumulate logp
-        logp_proposal = logp_r + logp_theta + logp_phi + np.log(np.abs(detJ))
+        logp_proposal = logp_r + logp_theta + logp_phi - np.log(np.abs(detJ))
 
         return new_xyz, logp_proposal
 

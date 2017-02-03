@@ -120,6 +120,7 @@ def test_tractable_system():
         proposed_state_key = storage.get_object(environment, modname, 'proposed_state_key', i)
         logP_accept = storage.get_object(environment, modname, 'logP_accept', i)
         logP_dict[state_key][proposed_state_key].append(logP_accept)
+        print('%8d %s' % (i, state_key))
 
     #estimate the free energies using BAR:
     for pair in itertools.combinations(chemical_states,2):
@@ -134,16 +135,6 @@ def test_tractable_system():
             print(pair)
             print(msg)
             raise Exception(msg)
-
-
-
-
-
-
-
-
-
-
 
 @attr('advanced')
 def test_testsystems_advanced():

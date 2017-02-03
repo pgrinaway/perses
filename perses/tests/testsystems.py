@@ -2369,13 +2369,6 @@ class VacuumAbsoluteFreeEnergySystem(object):
     valence_only : bool
         Whether to start with a valence-only system. Useful for certain tests.
     """
-    #_harmonic_well_potential = "(1-lambda_harmonic)*(K/2)*((x-x0)^2+(y-y0)^2+(z-z0)^2)"
-
-    _half_harmonic_potential = "(1-lambda_harmonic)*(step(r0-r)*(K/2)*(r^2) + step(r-r0)*K*r0*(r-r0/2));"
-    #_half_harmonic_potential = "(1-lambda_harmonic)*select(step(r0-r), (K/2)*r^2, K*r0*(r-r0/2));"
-    _half_harmonic_potential += "r = sqrt((x-x0)^2 + (y-y0)^2 + (z-z0)^2);"
-    _half_harmonic_potential += "r0 = nsigma*sigma;"
-    _half_harmonic_potential += "sigma = 1/sqrt(beta*K)"
 
     def __init__(self, smiles, valence_only=True, n_states=256):
         self._smiles = smiles
@@ -2384,11 +2377,27 @@ class VacuumAbsoluteFreeEnergySystem(object):
         system, positions, topology = self._oemol_to_openmm_system(self._oemol, forcefield=['data/gaff-valence-only.xml'])
         self._system = system
         self._temperature = 300.0*unit.kelvin
-        self._reference_thermodynamic_state = sams.ThermodynamicState(self._system, self._temperature)
-        self._positions = positions.value_in_unit(unit.nanometers)
         self._topology = topology
-        self._modified_system = self._generate_modified_system(self._system, self._positions, self._reference_thermodynamic_state)
+        self._modified_system = self._generate_modified_system(system, positions, self._temperature)
 
+        platform = openmm.Platform.getPlatformByName("Reference")
+
+        # Minimize
+        print("Minimizing...")
+        integrator = openmm.VerletIntegrator(1.0 * unit.femtoseconds)
+        context = openmm.Context(self._modified_system, integrator, platform)
+        context.setPositions(positions)
+        print ("Initial energy is %12.3f kcal/mol" % (context.getState(getEnergy=True).getPotentialEnergy() / unit.kilocalories_per_mole))
+        TOL = 1.0
+        MAX_STEPS = 200
+        openmm.LocalEnergyMinimizer.minimize(context, TOL, MAX_STEPS)
+        final_energy = context.getState(getEnergy=True).getPotentialEnergy()
+        if np.isnan(final_energy / unit.kilocalories_per_mole):
+            raise Exception('Minimized energy is nan')
+        print ("Final energy is   %12.3f kcal/mol" % (final_energy / unit.kilocalories_per_mole))
+        # Update positions.
+        positions = context.getState(getPositions=True).getPositions(asNumpy=True)
+        self._positions = positions
 
         #set up the sampler stack to perform the calculation:
         sampler_state = sams.SamplerState(positions=self._positions)
@@ -2399,24 +2408,20 @@ class VacuumAbsoluteFreeEnergySystem(object):
         for state_idx in range(n_states):
             parameters = {}
             for parameter, default_value in parameters_reference.items():
-                if parameter=="lambda_harmonic":
-                    parameters[parameter] = default_value * state_idx / n_states
-                else:
-                    parameters[parameter] = default_value * (n_states - state_idx) / n_states
+                parameters[parameter] = default_value * (n_states - state_idx) / n_states
             thermodynamic_state = sams.ThermodynamicState(self._modified_system, self._temperature, parameters=parameters)
             list_of_states.append(thermodynamic_state)
 
         self._beta = list_of_states[0].beta
-        platform = openmm.Platform.getPlatformByName("Reference")
 
         ncfile = nc.Dataset("sams10000_256states_SS_c1c1_1stage_half_harmonic_2sig.nc", mode='w')
         self._mcmc_sampler = sams.MCMCSampler(thermodynamic_state=list_of_states[0], sampler_state=sampler_state, ncfile=ncfile, platform=platform)
+        self._mcmc_sampler.topology = self._topology # for writing PDB files
         self._exen_sampler = sams.ExpandedEnsembleSampler(self._mcmc_sampler, list_of_states)
         self._sams_sampler = sams.SAMSSampler(self._exen_sampler, update_stages='one-stage')
 
     def run_sams(self, niterations=1000):
         self._sams_sampler.run(niterations=niterations)
-
 
     def _oemol_to_openmm_system(self, oemol, molecule_name=None, forcefield=['data/gaff.xml']):
         from perses.rjmc import topology_proposal
@@ -2433,7 +2438,7 @@ class VacuumAbsoluteFreeEnergySystem(object):
         minimized_positions = ctx.getState(getPositions=True).getPositions(asNumpy=True)
         return system, minimized_positions, topology
 
-    def _generate_modified_system(self, system, positions, reference_thermodynamic_state):
+    def _generate_modified_system(self, system, positions, temperature):
         """
         Generate an alchemically-modified system that also has a CustomExternalForce on each
         atom.
@@ -2455,27 +2460,47 @@ class VacuumAbsoluteFreeEnergySystem(object):
         n_atoms = system.getNumParticles()
         factory = AbsoluteAlchemicalFactory(system, ligand_atoms=range(n_atoms), alchemical_torsions=True, alchemical_bonds=True, alchemical_angles=True)
         modified_system = factory.alchemically_modified_system
-        beta = reference_thermodynamic_state.beta
+        kB = unit.BOLTZMANN_CONSTANT_kB * unit.AVOGADRO_CONSTANT_NA
+        kT = kB * temperature
+        beta = 1.0 / kT
+        nsigma = 6.0
+        K = 259408.0 * unit.kilojoule_per_mole / unit.nanometers**2 # spring constant
+        sigma = 1.0 / unit.sqrt(beta * K)
+
+        print('K = %s' % K)
+        print('beta = %s' % beta)
+        print('sigma = %s' % sigma)
+
+        self._energy_expression = "(1-lambda_harmonic)*(K/2)*((x-x0)^2+(y-y0)^2+(z-z0)^2)"
+
+        #self._energy_expression = "(1-lambda_harmonic)*(step(r0-r)*(K/2)*(r^2) + step(r-r0)*K*r0*(r-r0/2));"
+        #self._energy_expression = "(1-lambda_harmonic)*select(step(r0-r), (K/2)*r^2, K*r0*(r-r0/2));"
+        #self._energy_expression += "r = sqrt((x-x0)^2 + (y-y0)^2 + (z-z0)^2);"
 
         #create the external harmonic force
-        external_harmonic_force = openmm.CustomExternalForce(self._half_harmonic_potential)
+        external_harmonic_force = openmm.CustomExternalForce(self._energy_expression)
 
         #K is the force constant, x0,y0,z0 are the equilibrium coordinates
         #force constant taken from c1-c1 bond
-        external_harmonic_force.addGlobalParameter("K", 8.2525216)
-        external_harmonic_force.addGlobalParameter("beta", beta)
-        external_harmonic_force.addGlobalParameter("nsigma", 1)
-        external_harmonic_force.addGlobalParameter("lambda_harmonic", 1)
+        external_harmonic_force.addGlobalParameter("K", K.value_in_unit_system(unit.md_unit_system))
+        external_harmonic_force.addGlobalParameter("beta", beta.value_in_unit_system(unit.md_unit_system))
+        external_harmonic_force.addGlobalParameter("lambda_harmonic", 1.0)
+        external_harmonic_force.addGlobalParameter("r0", (nsigma*sigma).value_in_unit_system(unit.md_unit_system))
+        external_harmonic_force.addGlobalParameter("sigma", sigma.value_in_unit_system(unit.md_unit_system))
+
         external_harmonic_force.addPerParticleParameter("x0")
         external_harmonic_force.addPerParticleParameter("y0")
         external_harmonic_force.addPerParticleParameter("z0")
 
         #add the external force to the system
         #we use the original positions of the atoms as equilibrium positions for the wells.
-        modified_system.addForce(external_harmonic_force)
         for particle_idx in range(modified_system.getNumParticles()):
-            particle_position = positions[particle_idx, :]
-            external_harmonic_force.addParticle(particle_idx, [particle_position[0], particle_position[1], particle_position[2]])
+            x0 = positions[particle_idx, 0].value_in_unit_system(unit.md_unit_system)
+            y0 = positions[particle_idx, 1].value_in_unit_system(unit.md_unit_system)
+            z0 = positions[particle_idx, 2].value_in_unit_system(unit.md_unit_system)
+            external_harmonic_force.addParticle(particle_idx, [x0, y0, z0])
+
+        modified_system.addForce(external_harmonic_force)
 
         return modified_system
 
@@ -2941,7 +2966,7 @@ if __name__ == '__main__':
     #run_abl_imatinib()
     #run_myb()
     s = VacuumAbsoluteFreeEnergySystem("SS")
+    s._mcmc_sampler.pdbfile = open('trajectory_halfharmonichalfsig.pdb', 'w')
     s._sams_sampler.verbose = True
-    s._sams_sampler.pdbfile = open('trajectory_halfharmonichalfsig.pdb', 'w')
     s._exen_sampler.verbose = True
-    s.run_sams(niterations=10000)
+    s.run_sams(niterations=1000)

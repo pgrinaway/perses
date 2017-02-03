@@ -1141,8 +1141,8 @@ class ExpandedEnsembleSampler(object):
         # Compute total log acceptance probability according to Eq. 64
         logP_accept = logP_final - logP_initial + logP_chemical + logP_delete_work + logP_delete_energy + logP_reverse - logP_forward + logP_insert_work + logP_insert_energy
         if self.verbose:
-            print("logP_accept = %+10.4e [logP_final = %+10.4e, -logP_initial = %+10.4e, logP_chemical = %10.4e, logP_delete_work = %+10.4e, logP_delete_energy = %+10.4e, logP_reverse = %+10.4e, -logP_forward = %+10.4e, logP_insert_work = %+10.4e, logP_insert_energy = %+10.4e]"
-                % (logP_accept, logP_final, -logP_initial, logP_chemical, logP_delete_work, logP_delete_energy, logP_reverse, -logP_forward, logP_insert_work, logP_insert_energy))
+            print("logP_accept = %+10.4e [logP_weight = %+10.4e, logP_final = %+10.4e, -logP_initial = %+10.4e, logP_chemical = %10.4e, logP_delete_work = %+10.4e, logP_delete_energy = %+10.4e, logP_reverse = %+10.4e, -logP_forward = %+10.4e, logP_insert_work = %+10.4e, logP_insert_energy = %+10.4e]"
+                % (logP_accept, new_log_weight - old_log_weight, logP_final, -logP_initial, logP_chemical, logP_delete_work, logP_delete_energy, logP_reverse, -logP_forward, logP_insert_work, logP_insert_energy))
         # Write to storage.
         if self.storage:
             self.storage.write_quantity('logP_accept', logP_accept, iteration=self.iteration)
