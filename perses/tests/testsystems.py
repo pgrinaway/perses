@@ -2370,7 +2370,7 @@ class VacuumAbsoluteFreeEnergySystem(object):
         Whether to start with a valence-only system. Useful for certain tests.
     """
 
-    def __init__(self, smiles, valence_only=True, n_states=256):
+    def __init__(self, smiles, valence_only=True, n_states=512):
         self._smiles = smiles
         self._valence_only = valence_only
         self._oemol = utils.createOEMolFromSMILES(self._smiles)
@@ -2414,7 +2414,7 @@ class VacuumAbsoluteFreeEnergySystem(object):
 
         self._beta = list_of_states[0].beta
 
-        ncfile = nc.Dataset("sams10000_256states_SS_c1c1_1stage_half_harmonic_2sig.nc", mode='w')
+        ncfile = nc.Dataset("sams10000SSSS_512states.nc", mode='w')
         self._mcmc_sampler = sams.MCMCSampler(thermodynamic_state=list_of_states[0], sampler_state=sampler_state, ncfile=ncfile, platform=platform)
         self._mcmc_sampler.topology = self._topology # for writing PDB files
         self._exen_sampler = sams.ExpandedEnsembleSampler(self._mcmc_sampler, list_of_states)
@@ -2779,11 +2779,9 @@ def run_tractable_system(output_filename):
     """
     testsystem = TractableValenceSmallMoleculeTestSystem(storage_filename=output_filename)
     environment = 'vacuum'
-    testsystem.exen_samplers[environment].pdbfile = open('tractable.pdb','w')
     testsystem.exen_samplers[environment].ncmc_engine.nsteps = 0
     testsystem.mcmc_samplers[environment].nsteps = 5
-    testsystem.sams_samplers[environment].run(niterations=100)
-    print(testsystem._log_normalizing_constants)
+    testsystem.exen_samplers[environment].run(niterations=1000)
 
 
 
@@ -2957,7 +2955,7 @@ if __name__ == '__main__':
     #run_alanine_system(sterics=False)
     #run_fused_rings()
     #run_valence_system()
-    #run_tractable_system("output.nc")
+    run_tractable_system("tractable_ouput.nc")
     #run_t4_inhibitors()
     #run_imidazole()
     #run_constph_abl()
@@ -2965,8 +2963,8 @@ if __name__ == '__main__':
     #run_kinase_inhibitors()
     #run_abl_imatinib()
     #run_myb()
-    s = VacuumAbsoluteFreeEnergySystem("SS")
-    s._mcmc_sampler.pdbfile = open('trajectory_halfharmonichalfsig.pdb', 'w')
-    s._sams_sampler.verbose = True
-    s._exen_sampler.verbose = True
-    s.run_sams(niterations=1000)
+    #s = VacuumAbsoluteFreeEnergySystem("SSSS")
+    #s._mcmc_sampler.pdbfile = open('trajectorySSSS_10000.pdb', 'w')
+    #s._sams_sampler.verbose = True
+    #s._exen_sampler.verbose = True
+    #s.run_sams(niterations=10000)
