@@ -2367,15 +2367,15 @@ def run_t4_inhibitors():
     Run T4 lysozyme inhibitors in solvents test system.
     """
     testsystem = T4LysozymeInhibitorsTestSystem(storage_filename='output_test_2.nc')
-    for environment in ['vacuum']:
+    for environment in ['vacuum', 'explicit']:
         #testsystem.exen_samplers[environment].pdbfile = open('t4-' + component + '.pdb', 'w')
         #testsystem.exen_samplers[environment].options={'nsteps':50} # instantaneous MC
         testsystem.mcmc_samplers[environment].verbose = True
         testsystem.mcmc_samplers[environment].nsteps = 100 # use fewer MD steps to speed things up
         testsystem.exen_samplers[environment].verbose = True
-        testsystem.exen_samplers[environment].ncmc_engine.nsteps = 1000 # NCMC switching
+        testsystem.exen_samplers[environment].ncmc_engine.nsteps = 100 # NCMC switching
         testsystem.sams_samplers[environment].verbose = True
-    testsystem.sams_samplers['vacuum'].run(niterations=50)
+    testsystem.sams_samplers['explicit'].run(niterations=50)
     #testsystem.designer.verbose = True
     #testsystem.designer.run(niterations=50)
 
