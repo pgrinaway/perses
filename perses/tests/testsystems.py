@@ -1748,7 +1748,7 @@ class SmallMoleculeLibraryTestSystem(PersesTestSystem):
             mcmc_samplers[environment] = MCMCSampler(thermodynamic_states[environment], sampler_state, topology=topologies[environment], storage=storage)
             mcmc_samplers[environment].nsteps = 5 # reduce number of steps for testing
             mcmc_samplers[environment].verbose = True
-            exen_samplers[environment] = ExpandedEnsembleSampler(mcmc_samplers[environment], topologies[environment], chemical_state_key, proposal_engines[environment], self.geometry_engine, options={'nsteps':500}, storage=storage, scheme='geometry-ncmc-geometry')
+            exen_samplers[environment] = ExpandedEnsembleSampler(mcmc_samplers[environment], topologies[environment], chemical_state_key, proposal_engines[environment], self.geometry_engine, options={'nsteps':0}, storage=storage, scheme='ncmc-geometry-ncmc')
             exen_samplers[environment].verbose = True
             sams_samplers[environment] = SAMSSampler(exen_samplers[environment], storage=storage)
             sams_samplers[environment].verbose = True
@@ -2366,17 +2366,18 @@ def run_t4_inhibitors():
     """
     Run T4 lysozyme inhibitors in solvents test system.
     """
-    testsystem = T4LysozymeInhibitorsTestSystem(storage_filename='output.nc')
-    for environment in ['explicit', 'vacuum']:
+    testsystem = T4LysozymeInhibitorsTestSystem(storage_filename='output_test_2.nc')
+    for environment in ['vacuum']:
         #testsystem.exen_samplers[environment].pdbfile = open('t4-' + component + '.pdb', 'w')
         #testsystem.exen_samplers[environment].options={'nsteps':50} # instantaneous MC
         testsystem.mcmc_samplers[environment].verbose = True
-        testsystem.mcmc_samplers[environment].nsteps = 50 # use fewer MD steps to speed things up
+        testsystem.mcmc_samplers[environment].nsteps = 100 # use fewer MD steps to speed things up
         testsystem.exen_samplers[environment].verbose = True
-        testsystem.exen_samplers[environment].ncmc_engine.nsteps = 50 # NCMC switching
+        testsystem.exen_samplers[environment].ncmc_engine.nsteps = 1000 # NCMC switching
         testsystem.sams_samplers[environment].verbose = True
-    testsystem.designer.verbose = True
-    testsystem.designer.run(niterations=50)
+    testsystem.sams_samplers['vacuum'].run(niterations=50)
+    #testsystem.designer.verbose = True
+    #testsystem.designer.run(niterations=50)
 
     # Analyze data.
     #from perses.analysis import Analysis
